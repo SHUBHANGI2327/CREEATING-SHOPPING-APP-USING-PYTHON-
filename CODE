@@ -1,0 +1,287 @@
+import uuid
+
+# ---------- Dummy Databases ----------
+users_db = {
+    "user1": "pass1",
+    "user2": "pass2"
+}
+
+admins_db = {
+    "admin": "admin123"
+}
+
+# Predefined categories and products
+categories = {
+    "C1": "Boots",
+    "C2": "Coats",
+    "C3": "Jackets",
+    "C4": "Caps"
+}
+
+product_catalog = {
+    "P1": {"name": "Winter Boots", "category_id": "C1", "price": 1200},
+    "P2": {"name": "Leather Coat", "category_id": "C2", "price": 2500},
+    "P3": {"name": "Hiking Jacket", "category_id": "C3", "price": 1800},
+    "P4": {"name": "Baseball Cap", "category_id": "C4", "price": 500}
+}
+
+sessions = {}  # session_id -> {"username": ..., "role": ...}
+
+# ---------- Classes ----------
+
+class AuthSystem:
+    @staticmethod
+    def login():
+        role = input("Enter role (admin/user): ").strip().lower()
+        username = input("Enter username: ")
+        password = input("Enter password: ")
+
+        if role == "admin":
+            if admins_db.get(username) == password:
+                session_id = str(uuid.uuid4())
+                sessions[session_id] = {"username": username, "role": "admin"}
+                print(f"Admin login successful. Session ID: {session_id}")
+                return session_id
+            else:
+                print("Error: Invalid admin credentials.")
+                return None
+
+        elif role == "user":
+            if users_db.get(username) == password:
+                session_id = str(uuid.uuid4())
+                sessions[session_id] = {"username": username, "role": "user"}
+                print(f"User login successful. Session ID: {session_id}")
+                return session_id
+            else:
+                print("Error: Invalid user credentials.")
+                return None
+
+        else:
+            print("Invalid role.")
+            return None
+
+class Catalog:
+    @staticmethod
+    def view_catalog():
+        print("\n------ Product Catalog ------")
+        for pid, details in product_catalog.items():
+            cat_name = categories.get(details['category_id'], "Unknown")
+            print(f"{pid} | {details['name']} | Category: {cat_name} | Price: Rs. {details['price']}")
+        print("-----------------------------")
+
+    @staticmethod
+    def view_categories():
+        print("\n------ Product Categories ------")
+        for cid, name in categories.items():
+            print(f"{cid} | {name}")
+        print("--------------------------------")
+
+class Admin:
+    def __init__(self, session_id):
+        self.session_id = session_id
+
+    def verify_admin(self):
+        return sessions.get(self.session_id, {}).get("role") == "admin"
+
+    def add_product(self):
+        if not self.verify_admin():
+            print("Error: Unauthorized action for admin.")
+            return
+        pid = input("Enter new product ID: ")
+        name = input("Enter product name: ")
+        category_id = input("Enter category ID: ")
+        price = int(input("Enter product price: "))
+
+        if category_id not in categories:
+            print("Error: Category does not exist.")
+            return
+
+        product_catalog[pid] = {
+            "name": name,
+            "category_id": category_id,
+            "price": price
+        }
+        print("Product added successfully.")
+
+    def update_product(self):
+        if not self.verify_admin():
+            print("Error: Unauthorized action for admin.")
+            return
+        pid = input("Enter product ID to update: ")
+        if pid in product_catalog:
+            name = input("Enter new name: ")
+            category_id = input("Enter new category ID: ")
+            price = int(input("Enter new price: "))
+
+            product_catalog[pid] = {
+                "name": name,
+                "category_id": category_id,
+                "price": price
+            }
+            print("Product updated.")
+        else:
+            print("Product ID not found.")
+
+    def delete_product(self):
+        if not self.verify_admin():
+            print("Error: Unauthorized action for admin.")
+            return
+        pid = input("Enter product ID to delete: ")
+        if pid in product_catalog:
+            del product_catalog[pid]
+            print("Product deleted.")
+        else:
+            print("Product ID not found.")
+
+    def add_category(self):
+        cid = input("Enter new category ID: ")
+        name = input("Enter new category name: ")
+        categories[cid] = name
+        print("Category added.")
+
+    def delete_category(self):
+        cid = input("Enter category ID to delete: ")
+        if cid in categories:
+            # Remove products under this category
+            for pid in list(product_catalog.keys()):
+                if product_catalog[pid]["category_id"] == cid:
+                    del product_catalog[pid]
+            del categories[cid]
+            print("Category and related products deleted.")
+        else:
+            print("Category ID not found.")
+
+class User:
+    def __init__(self, session_id):
+        self.session_id = session_id
+        self.cart = {}
+
+    def verify_user(self):
+        return sessions.get(self.session_id, {}).get("role") == "user"
+
+    def add_to_cart(self):
+        if not self.verify_user():
+            print("Error: Only users can add to cart.")
+            return
+        pid = input("Enter product ID to add to cart: ")
+        qty = int(input("Enter quantity: "))
+        if pid in product_catalog:
+            self.cart[pid] = self.cart.get(pid, 0) + qty
+            print("Item added to cart.")
+        else:
+            print("Product ID not found.")
+
+    def remove_from_cart(self):
+        if not self.verify_user():
+            print("Error: Only users can remove from cart.")
+            return
+        pid = input("Enter product ID to remove from cart: ")
+        if pid in self.cart:
+            del self.cart[pid]
+            print("Item removed from cart.")
+        else:
+            print("Item not in cart.")
+
+    def view_cart(self):
+        if not self.verify_user():
+            print("Error: Only users can view cart.")
+            return
+        if not self.cart:
+            print("Cart is empty.")
+            return
+        print("\n------ Your Cart ------")
+        total = 0
+        for pid, qty in self.cart.items():
+            product = product_catalog[pid]
+            name = product["name"]
+            price = product["price"]
+            subtotal = qty * price
+            total += subtotal
+            print(f"{pid} | {name} | Qty: {qty} | Subtotal: Rs. {subtotal}")
+        print(f"Total: Rs. {total}")
+        print("------------------------")
+
+    def checkout(self):
+        if not self.verify_user():
+            print("Error: Only users can checkout.")
+            return
+        if not self.cart:
+            print("Cart is empty.")
+            return
+        print("Choose payment option: 1. UPI 2. Debit Card 3. Net Banking 4. PayPal")
+        choice = input("Enter option number: ")
+
+        total = sum(product_catalog[pid]["price"] * qty for pid, qty in self.cart.items())
+
+        if choice == "1":
+            print(f"Redirecting to UPI for Rs. {total}")
+        elif choice == "2":
+            print(f"Processing debit card payment of Rs. {total}")
+        elif choice == "3":
+            print(f"Redirecting to net banking for Rs. {total}")
+        elif choice == "4":
+            print(f"Redirecting to PayPal for Rs. {total}")
+        else:
+            print("Invalid payment option.")
+
+        print("Order successfully placed!")
+
+# ---------- Application Runner ----------
+
+def run_app():
+    print("Welcome to the Demo Marketplace")
+    session_id = AuthSystem.login()
+    if not session_id:
+        return
+
+    role = sessions[session_id]['role']
+    Catalog.view_catalog()
+    Catalog.view_categories()
+
+    if role == "admin":
+        admin = Admin(session_id)
+        while True:
+            print("\nAdmin Menu:")
+            print("1. Add Product\n2. Update Product\n3. Delete Product\n4. Add Category\n5. Delete Category\n6. View Catalog\n7. Exit")
+            ch = input("Enter choice: ")
+            if ch == "1":
+                admin.add_product()
+            elif ch == "2":
+                admin.update_product()
+            elif ch == "3":
+                admin.delete_product()
+            elif ch == "4":
+                admin.add_category()
+            elif ch == "5":
+                admin.delete_category()
+            elif ch == "6":
+                Catalog.view_catalog()
+            elif ch == "7":
+                break
+            else:
+                print("Invalid choice.")
+
+    elif role == "user":
+        user = User(session_id)
+        while True:
+            print("\nUser Menu:")
+            print("1. View Catalog\n2. View Cart\n3. Add to Cart\n4. Remove from Cart\n5. Checkout\n6. Exit")
+            ch = input("Enter choice: ")
+            if ch == "1":
+                Catalog.view_catalog()
+            elif ch == "2":
+                user.view_cart()
+            elif ch == "3":
+                user.add_to_cart()
+            elif ch == "4":
+                user.remove_from_cart()
+            elif ch == "5":
+                user.checkout()
+            elif ch == "6":
+                break
+            else:
+                print("Invalid choice.")
+
+# Run the application
+run_app()
+
